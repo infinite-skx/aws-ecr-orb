@@ -1,133 +1,26 @@
+# Use the latest 2.1 version of CircleCI pipeline process engine.
+# See: https://circleci.com/docs/2.0/configuration-reference
 version: 2.1
 
-orbs:
-  orb-tools: circleci/orb-tools@10.0
-  aws-ecr: circleci/aws-ecr@<<pipeline.parameters.dev-orb-version>>
-
-# Pipeline parameters
-parameters:
-  # These pipeline parameters are required by the "trigger-integration-tests-workflow"
-  # job, by default.
-  run-integration-tests:
-    type: boolean
-    default: false
-  dev-orb-version:
-    type: string
-    default: "dev:alpha"
-
+# Define a job to be invoked later in a workflow.
+# See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
-  pre-integration-checkout-workspace-job:
+  say-hello:
+    # Specify the execution environment. You can specify an image from Dockerhub or use one of our Convenience Images from CircleCI's Developer Hub.
+    # See: https://circleci.com/docs/2.0/configuration-reference/#docker-machine-macos-windows-executor
     docker:
       - image: cimg/base:stable
-    resource_class: small
+    # Add steps to the job
+    # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - checkout
-      - persist_to_workspace:
-          root: .
-          paths: [sample/Dockerfile]
+      - run:
+          name: "Say hello"
+          command: "echo Hello, World!"
 
+# Invoke jobs via workflows
+# See: https://circleci.com/docs/2.0/configuration-reference/#workflows
 workflows:
-  test-pack:
-    unless: << pipeline.parameters.run-integration-tests >>
+  say-hello-workflow:
     jobs:
-      - orb-tools/lint
-
-      - orb-tools/pack:
-          requires: [orb-tools/lint]
-
-      - orb-tools/publish-dev:
-          context: orb-publisher
-          orb-name: circleci/aws-ecr
-          requires: [orb-tools/pack]
-
-      - orb-tools/trigger-integration-tests-workflow:
-          context: orb-publisher
-          requires: [orb-tools/publish-dev]
-
-  integration-test_deploy:
-    when: << pipeline.parameters.run-integration-tests >>
-    jobs:
-      - pre-integration-checkout-workspace-job:
-          name: pre-integration
-
-      - aws-ecr/build-and-push-image:
-          name: integration-tests-default-profile
-          attach-workspace: true
-          workspace-root: workspace
-          repo: aws-ecr-orb-${CIRCLE_SHA1:0:7}-default-profile
-          create-repo: true
-          tag: integration,myECRRepoTag
-          dockerfile: sample/Dockerfile
-          path: workspace
-          extra-build-args: --compress
-          post-steps:
-            - run: aws ecr delete-repository --repository-name aws-ecr-orb-${CIRCLE_SHA1:0:7}-default-profile --force
-          requires: [pre-integration]
-
-      - aws-ecr/build-and-push-image:
-          name: integration-tests-named-profile
-          attach-workspace: true
-          workspace-root: workspace
-          profile-name: testing
-          repo: aws-ecr-orb-${CIRCLE_SHA1:0:7}-named-profile
-          create-repo: true
-          tag: integration,myECRRepoTag
-          dockerfile: sample/Dockerfile
-          path: workspace
-          extra-build-args: --compress
-          post-steps:
-            - run: aws ecr delete-repository --repository-name aws-ecr-orb-${CIRCLE_SHA1:0:7}-named-profile --force
-          executor:
-            name: aws-ecr/default
-            use-docker-layer-caching: true
-          requires: [pre-integration]
-
-      - aws-ecr/build-and-push-image:
-          name: integration-tests-skip-when-tags-exist-populate-image
-          attach-workspace: true
-          workspace-root: workspace
-          repo: aws-ecr-orb-${CIRCLE_SHA1:0:7}-skip-when-tags-exist
-          create-repo: true
-          tag: integration,myECRRepoTag
-          dockerfile: sample/Dockerfile
-          path: workspace
-          extra-build-args: --compress
-          skip-when-tags-exist: true
-          executor:
-            name: aws-ecr/default
-            use-docker-layer-caching: true
-          requires: [pre-integration]
-
-      - aws-ecr/build-and-push-image:
-          name: integration-tests-skip-when-tags-exist
-          attach-workspace: true
-          workspace-root: workspace
-          repo: aws-ecr-orb-${CIRCLE_SHA1:0:7}-skip-when-tags-exist
-          tag: integration,myECRRepoTag
-          dockerfile: sample/Dockerfile
-          path: workspace
-          extra-build-args: --compress
-          skip-when-tags-exist: true
-          post-steps:
-            - run: aws ecr delete-repository --repository-name aws-ecr-orb-${CIRCLE_SHA1:0:7}-skip-when-tags-exist --force
-          executor:
-            name: aws-ecr/default
-            use-docker-layer-caching: true
-          requires: [integration-tests-skip-when-tags-exist-populate-image]
-
-      - orb-tools/dev-promote-prod-from-commit-subject:
-          orb-name: circleci/aws-ecr
-          context: orb-publisher
-          add-pr-comment: true
-          bot-token-variable: GHI_TOKEN
-          bot-user: orb-publisher
-          fail-if-semver-not-indicated: true
-          publish-version-tag: true
-          ssh-fingerprints: 6f:16:49:d2:97:35:10:43:bc:a6:3f:f8:62:89:1f:42
-          filters:
-            branches:
-              only: master
-          requires:
-            - integration-tests-default-profile
-            - integration-tests-named-profile
-            - integration-tests-skip-when-tags-exist
+      - say-hello
